@@ -204,7 +204,7 @@ double xm;
   float gammln();
   double drand48();
   static float sq,alxm,g,oldm=(-1.0);
-  double em,t,y;
+  double em,tt,y;
   double exp();
 
   if (xm < 12.0) {
@@ -213,12 +213,12 @@ double xm;
       g=exp(-xm);
     }
     em = -1;
-    t=1.0;
+    tt=1.0;
     do {
       ++em;
-      /*                      t *= ran1(idum);  */
-      t *= holt_random();
-    } while (t > g);
+      /*                      tt *= ran1(idum);  */
+      tt *= holt_random();
+    } while (tt > g);
   } else {
     if (xm != oldm) {
       oldm=xm;
@@ -233,8 +233,8 @@ double xm;
 	em=sq*y+xm;
       } while (em < 0.0);
       em=floor(em);
-      t=0.9*(1.0+y*y)*exp(em*alxm-gammln(em+1.0)-g);
-    } while (holt_random() > t);
+      tt=0.9*(1.0+y*y)*exp(em*alxm-gammln(em+1.0)-g);
+    } while (holt_random() > tt);
   }
   return (int)em;
 }
