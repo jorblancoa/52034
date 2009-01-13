@@ -1,0 +1,1379 @@
+// Created 04/12/05 08:57:45 by /usr/site/scripts/loadfiles
+//================================================================
+// INSERTED batch.hoc
+// $Id: batch.hoc,v 1.1 2005/04/12 12:56:07 billl Exp $
+
+mapped_nrnmainmenu_ = 1
+batch_flag = 1
+
+//================================================================
+// INSERTED /usr/site/nrniv/local/hoc/setup.hoc
+// $Id: setup.hoc,v 1.21 2004/11/01 22:27:47 billl Exp $
+// variables normally controlled by SIMCTRL
+
+// load_file("setup.hoc")
+// load_file("stdgui.hoc")
+load_file("nrngui.hoc")	// loads stdgui and more
+
+show_panel=0
+proc setup () {}
+strdef simname, filename, output_file, datestr, uname, comment, section, osname
+objref tmpfile,nil,graphItem,sfunc
+tmpfile = new File()
+simname = "sim"      // helpful if running multiple simulations simultaneously
+runnum = 2           // updated at end of run
+datestr = "99aug01"  // updated at end of day
+output_file = "data/99aug01.01"  // assumes a subdir called data
+comment = "current comment for saving sim"
+uname = "i686"  // keep track of type of machine for byte compatibility
+if (unix_mac_pc()==1) osname = "Linux" else if (unix_mac_pc()==2) { 
+    osname = "Mac" } else if (unix_mac_pc()==3) osname = "PC"
+printStep = 0.25 // time interval for saving to vector
+graph_flag=1
+batch_flag=0
+xwindows = 1     // can still save but not look without xwindows
+sfunc = hoc_sf_  // from stdlib.hoc
+
+// load_file("nrnoc.hoc")
+// END /usr/site/nrniv/local/hoc/setup.hoc
+//================================================================
+//================================================================
+// INSERTED /usr/site/nrniv/simctrl/hoc/nrnoc.hoc
+// $Id: nrnoc.hoc,v 1.67 2005/03/12 20:07:45 billl Exp $
+
+// proc nrnoc () {}
+
+// Users should not edit nrnoc.hoc or default.hoc.  Any local 
+// changes to these files should be made in local.hoc.
+
+// key '*&*' is picked up by to indicate command for emacs
+proc elisp () { printf("*&* %s\n",$s1) }
+// if (not exists(simname)) { strdef simname, output_file, datestr, comment }
+
+// Simctrl.hoc will automatically load stdgraph.hoc which automatically
+// loads stdrun.hoc
+strdef temp_string_, user_string_  // needed for simctrl
+/* Global variable default values.  NOTE that stdrun.hoc, stdgraph.hoc
+and simctrl.hoc all contain variable definitions and thus default.hoc
+should be loaded after these files */
+//================================================================
+// INSERTED /usr/site/nrniv/simctrl/hoc/default.hoc
+// $Id: default.hoc,v 1.5 2003/07/08 16:16:52 billl Exp $
+/* This file contains various global defaults for hoc
+
+** Users should not edit nrnoc.hoc or default.hoc.  Any local 
+changes to these files should be made in local.hoc.
+----------------------------------------------------------------*/
+
+/*------------------------------------------------------------
+Object defaults
+------------------------------------------------------------*/
+
+/*** Define a "nil" object ***/
+objectvar nil
+
+/*------------------------------------------------------------
+String defaults
+------------------------------------------------------------*/
+
+/*** "Section" is used if errors are found in the initializiations ***/
+strdef section
+
+/*** Misc defines used by graphic routines ***/
+temp_string_ = "t"
+tempvar = 0
+
+/*------------------------------------------------------------
+Simulation defaults
+------------------------------------------------------------*/
+
+                        /* To be consistent w/the nmodl values */
+FARADAY = 96520.        /* Hoc default = 96484.56 */
+PI      = 3.14159       /* Hoc default = 3.1415927 */
+
+                        /* 0=off, 1=on */
+print_flag  = 0         /* Write to output file */
+graph_flag  = 1         /* Plot output */
+iv_flag     = 1         /* Using Interviews plotting */
+batch_flag  = 0         /* Using batch_run() */
+compress_flag = 0       /* Compress output file when saved */
+stoprun     = 0         /* 0=running, 1=stopped */
+iv_loaded   = 0         /* Load initial iv stuff on once */
+
+init_seed   = 830529
+run_seed    = 680612
+
+t           = 0         /* msec */
+dt          = .01       /* msec */
+tstop       = 100       /* msec */
+printStep   = 0.1       /* msec */
+plotStep    = 0.1       /* msec */
+flushStep   = 0.1       /* msec */
+eventStep   = 50        /* Number of nstep's before a doEvent */
+
+secondorder = 0
+
+celsius     = 6.3       /* degC */
+
+v_init      = -70       /* (mV) */
+global_ra   = 200       /* (ohm-cm) specific axial resisitivity */
+
+/*** Ion parameters ***/
+ca_init     = 50e-6     /* mM */
+na_init     = 10        /* mM */
+k_init      = 54.4      /* mM */
+
+// END /usr/site/nrniv/simctrl/hoc/default.hoc
+//================================================================
+
+/* Allows arrays of strings */
+objref hoc_obj_[2]
+//================================================================
+// INSERTED /usr/site/nrniv/simctrl/hoc/simctrl.hoc
+// $Id: simctrl.hoc,v 1.14 2000/11/27 21:59:33 billl Exp $
+// Graphic routines for neuremacs simulation control
+
+proc sim_panel () {
+    xpanel(simname)
+          xvarlabel(output_file)
+  	xbutton("Init", "stdinit()")
+  	xbutton("Init & Run", "run()")
+  	xbutton("Stop", "stoprun=1")
+  	xbutton("Continue till Tstop", "continueRun(tstop)")
+  	xvalue("Continue till", "runStopAt", 1, "{continueRun(runStopAt) stoprun=1}", 1, 1)
+  	xvalue("Continue for", "runStopIn", 1, "{continueRun(t + runStopIn) stoprun=1}", 1,1)
+  	xbutton("Single Step", "steprun()")
+  	xvalue("Tstop", "tstop", 1, "tstop_changed()", 0, 1)
+  	graphmenu()
+  	sim_menu_bar()
+  	misc_menu_bar()
+    xpanel()
+  }
+
+proc misc_menu_bar() {
+    xmenu("Miscellaneous")
+      xbutton("Label Graphs", "labelgrs()")
+      xbutton("Label With String", "labelwith()")
+      xbutton("Label Panel", "labelpanel()")
+  	xbutton("Parameterized Function", "load_template(\"FunctionFitter\") makefitter()")
+    xmenu()
+  }
+
+proc sim_menu_bar() {
+    xmenu("Simulation Control")
+      xbutton("File Vers", "elisp(\"sim-current-files\")")
+      xbutton("File Status...", "elisp(\"sim-rcs-status\")")
+      xbutton("Sim Status", "elisp(\"sim-portrait\")")
+      xbutton("Load Current Files", "elisp(\"sim-load-sim\")")
+      xbutton("Load Templates", "elisp(\"sim-load-templates\")") 
+      xbutton("Load File...", "elisp(\"sim-load-file\")") 
+      xbutton("Save Sim...", "elisp(\"sim-save-sim\")")
+      xbutton("Set File Vers...", "elisp(\"sim-set-file-ver\")")
+      xbutton("Read Current Vers From Index", "elisp(\"sim-read-index-file\")")
+      xbutton("Read Last Saved Vers", "elisp(\"sim-read-recent-versions\")")
+      xbutton("Output to sim buffer", "elisp(\"sim-direct-output\")")
+    xmenu()
+  }
+
+proc labelpanel() {
+    xpanel(simname,1)
+  	xvarlabel(output_file)
+    xpanel()
+  }
+
+proc labels () {
+    labelwith($s1)
+    labelgrs()
+  }
+
+proc labelgrs () { local i, j, cnt
+    for j=0,n_graph_lists-1 {
+        cnt = graphList[j].count() - 1
+        for i=0,cnt labelgr(graphList[j].object(i))
+      }
+  }
+
+proc labelwith () { local i, j, cnt
+    temp_string_ = user_string_  // save the old one
+    if (numarg() == 1) { /* interactive mode */  
+        user_string_ = $s1
+      } else {
+        string_dialog("write what?", user_string_)
+      }
+    for j=0,n_graph_lists-1 {
+        cnt = graphList[j].count() - 1
+        for i=0,cnt {
+            graphList[j].object(i).color(0)
+            graphList[j].object(i).label(0.5,0.9,temp_string_)
+            graphList[j].object(i).color(1)
+            graphList[j].object(i).label(0.5,0.9,user_string_)
+          }
+      }
+  }
+
+proc labelgr () { local i
+    $o1.color(0)  // white overwrite
+    for (i=0;i<10;i=i+1) { // erase every possible runnum for this date
+        sprint(temp_string_,"%s %d%d",datestr,i,i)
+        $o1.label(0.1,0.7,temp_string_) }
+    $o1.color(1) // back to basic black
+    sprint(temp_string_,"%s %02d",datestr,runnum)
+    $o1.label(0.1,0.7,temp_string_)
+  }
+
+// END /usr/site/nrniv/simctrl/hoc/simctrl.hoc
+//================================================================
+
+proc run () {
+  
+    stdinit()
+  
+    if (using_cvode_ && cvode.use_local_dt) {
+        cvode.solve(tstop)
+      } else {
+        continueRun(tstop)
+      }
+    finish()
+  }
+
+proc continueRun () { local eventCount
+    eventCount=0
+    eventslow=1
+    stoprun = 0
+  
+    if (cvode_active()) cvode.event($1)
+  
+    while (t < $1 && stoprun == 0) { 
+        advance()
+        outputData()
+        if (graph_flag) { fastflushPlot() doEvents() }
+      }
+  }
+
+proc advance () { fadvance() }
+
+proc stdinit() {
+    realtime=0 startsw()
+    t = 0
+    stoprun = 0
+  
+    if (batch_flag == 1) {
+      }
+  
+    init()
+  
+    if (graph_flag == 1) { 
+        if (iv_flag == 1) {
+            initPlot()
+          } else {
+            initGraph() 
+          }
+      }
+  
+    if (print_flag == 1) { initPrint() }
+  }
+
+
+proc init () {
+    cvode_simgraph()
+    initMech()
+    initMisc1()
+  
+    // Initialize state vars then calculate currents
+    // If user hand-set v in initMisc1() then v_init should be > 1000,
+    // else all compartments will be set to v_init
+    if (v_init < 1000) {
+        finitialize(v_init)
+      } else {
+        finitialize()
+      }
+  
+    // Set ca pump and leak channel for steady state
+    setMemb()
+  
+    initMisc2()
+    if (cvode_active()) cvode.re_init() else fcurrent()
+    frecord_init()
+  }
+
+// Initialization of mechanism variables
+// NOTE: if any changes are made to the NEURON block of any local mod
+// file, the user must add the necessary inits to initMisc1()
+proc initMech () { 
+    forall {
+        if ((!ismembrane("pas")) && (!ismembrane("Passive"))) { 
+            // Allow for either pas or Passive mod file usage
+            // errorMsg("passive not inserted") 
+          }
+    
+        if (ismembrane("na_ion")) { 
+            nai = na_init
+            nai0_na_ion = na_init
+          }
+        
+        if (ismembrane("k_ion")) {
+            ki = k_init
+            ki0_k_ion = k_init
+          }
+        
+        if (ismembrane("ca_ion")) { 
+            cai = ca_init
+            cai0_ca_ion = ca_init
+          }
+      }
+  }
+
+//* setMemb complex -- multiple names for passive mech
+//** declarations
+iterator scase() { local i
+    for i = 1, numarg() { temp_string_ = $si iterator_statement }}
+objref paslist,pasvars[3],XO
+double pasvals[2],x[1]
+paslist = new List()
+for ii=0,2 pasvars[ii]= new String()
+for scase("fastpas","pas","Pass","Passive") paslist.append(new String(temp_string_))
+
+//** getval(),setval() -- return/set the hoc value of a string
+func retval () { return getval($s1) }
+func getval () { 
+    sprint(temp_string2_,"x=%s",$s1)
+    execute(temp_string2_)
+    return x
+  }
+proc setval () { 
+    sprint(temp_string2_,"%s=%g",$s1,$2)
+    execute(temp_string2_)
+  }
+
+//** findpas()
+// assumes that we are starting in a live section since looks for pass mech there
+qx_=0
+proc findpas () {
+    for ii=0,paslist.count-1 {
+        XO=paslist.object(ii)
+        if (ismembrane(XO.s)) {
+            // print XO.s,"found"
+            pasvars[2].s=XO.s
+            sprint(pasvars[0].s,"g_%s(qx_)",XO.s)
+            for scase("e","erev","XXXX") {  // look for the proper prefix
+                sprint(temp_string_,"%s_%s",temp_string_,XO.s)
+                if (name_declared(temp_string_)==1) break
+              }
+            if (name_declared(temp_string_)==0) { // not found
+                printf("SetMemb() in nrnoc.hoc: Can't find proper 'erev' prefix for %s\n",XO.s)
+              } else {
+                sprint(pasvars[1].s,"%s(qx_)",temp_string_)
+              }
+          }
+      }
+  }
+
+proc setMemb () {
+    findpas() // assume that passive name is the same in all sections
+    forall for (qx_) {  // will eventually want 'for (x)' to handle all the segments
+        if (ismembrane(pasvars[2].s)) {
+              for ii=0,1 pasvals[ii]=getval(pasvars[ii].s)
+              setmemb2()
+              for ii=0,1 setval(pasvars[ii].s,pasvals[ii])
+          }
+      }
+  }
+
+func setother () {return 0} // callback stub
+proc setmemb2 () { local iSum, ii, epas, gpas
+    gpas=pasvals[0] epas=pasvals[1]
+    // Setup steady state voltage using leak channel
+    iSum = 0.0
+    if (ismembrane("na_ion")) { iSum += ina(qx_) }
+    if (ismembrane("k_ion"))  { iSum += ik(qx_)  }
+    if (ismembrane("ca_ion")) { iSum += ica(qx_) }
+    iSum += setother()
+    // print iSum
+  
+    if (iSum == 0) {        // Passive cmp so set e_pas = v
+        epas = v
+      } else {
+        if (gpas > 0) {    // Assume g set by user, calc e
+            epas = v + iSum/gpas
+      
+          } else {            // Assume e set by user, calc g
+            if (epas != v) {
+                gpas = iSum/(epas - v)
+              } else { gpas=0 }
+          }
+        if (gpas < 0) errorMsg("bad g", gpas)
+        if (epas < -100 || epas > 0) {
+            printf(".")
+            // printf("%s erev: %g %g %g\n",secname(),e_pas,ina,ik)
+          }
+      }
+    pasvals[0]=gpas pasvals[1]=epas
+  }
+
+proc finish () {
+    /* Called following completion of continueRun() */
+  
+  finishMisc()
+  
+  if (graph_flag == 1) {
+      if (iv_flag == 1) {
+          flushPlot()
+          doEvents()
+        } else {
+          graphmode(-1)
+          plt(-1)
+        }
+    }
+  
+  if (print_flag == 1) {
+      wopen("")
+    }
+  }
+
+/*------------------------------------------------------------
+User definable GRAPHICS and PRINTING routines
+------------------------------------------------------------*/
+
+proc outputData() {
+    // Default procedure - if outputData() doesn't exist in the run file
+  
+    if (graph_flag == 1) {
+        if (iv_flag == 1) {
+            Plot()
+            rt = stopsw()
+            if (rt > realtime) {
+                realtime = rt
+                fastflushPlot()
+                doNotify()
+                if (realtime == 2 && eventcount > 50) {
+                    eventslow = int(eventcount/50) + 1
+                  }
+                eventcount = 0
+              }else{
+                eventcount = eventcount + 1
+                if ((eventcount%eventslow) == 0) {
+                    doEvents()
+                  }
+              }
+      
+          } else {
+            graph(t)
+          }
+      }
+  
+    if (print_flag == 1) { 
+        if (t%printStep <= printStep) { printOut() }
+      }
+  }
+
+proc printOut() {
+    /* Default procedure - if printOut() doesn't exist in the run file */
+  }
+
+proc initGraph() {
+    /* Default procedure - if initGraph() doesn't exist in the run file */
+  
+  graph()
+  }
+
+proc initPrint() {
+    /* Default procedure - if initPrint() doesn't exist in the run file */
+  
+  wopen(output_file)
+  }
+
+/*------------------------------------------------------------
+User definable BATCH RUN routines
+------------------------------------------------------------*/
+
+proc nextrun() {
+    // Called from finishmisc() following completion of batch in an autorun
+    wopen("")   
+    runnum = runnum + 1
+    sprint(output_file,"data/b%s.%02d", datestr, runnum)
+  }                       
+
+// commands for emacs
+proc update_runnum() { 
+    runnum = $1
+    sprint(output_file,"data/%s.%02d", datestr, runnum)
+    print "^&^ (progn (sim-index-revert)(setq sim-runnum ",runnum,"))" }
+proc nrn_write_index() { printf("&INDEX& %s\n",$s1) }
+proc nrn_update () { elisp("nrn-update") }
+proc nrn_message () { printf("!&! %s\n",$s1) } 
+
+/*------------------------------------------------------------
+User definable INITIALIZATION and FINISH routines
+------------------------------------------------------------*/
+
+// Default procedure - if initMisc1() doesn't exist in the run file 
+// Initializations performed prior to finitialize() 
+// This should contain point process inits and inits for any changes 
+//        made to the NEURON block of any local mod file 
+proc initMisc1() { }
+
+// Default procedure - if initMisc2() doesn't exist in the run file 
+// Initializations performed after finitialize() 
+proc initMisc2() { }
+
+// Default procedure - if finishMisc() doesn't exist in the run file 
+proc finishMisc() { }
+
+/*------------------------------------------------------------
+Miscellaneous routines
+------------------------------------------------------------*/
+
+proc errorMsg() {
+    /* Print warning, assumes arg1 is string and arg2 if present is a
+    variable value */
+  
+  sectionname(section)
+  
+  if (numarg() == 0) {
+      printf("ERROR in errorMsg(): Needs at least 1 argument.\n")
+    } else if (numarg() == 1) {
+      printf("ERROR: %s in section %s.\n", $s1, section)
+    } else {
+      printf("ERROR: %s in section %s (var=%g).\n", $s1, section, $2)
+    }
+  }
+
+proc clear() {
+    /* Clear non-interviews plot window */
+  plt(-3)
+  }
+
+func mod() { local x, y
+    /* Mod function for non-integers */
+  
+  x=$1
+  y=$2
+  
+  return (x/y - int(x/y))
+  }
+
+proc whatSection() { print secname() }
+
+proc print_pp_location() { local x //arg1 must be a point process
+     x = $o1.get_loc()
+     sectionname(temp_string_)
+     printf("%s located at %s(%g)\n", $o1, temp_string_, x)
+     pop_section()
+  }
+
+//* set method with method()
+proc method () { local prc
+    if (numarg()==0) {
+        if (cvode_active() && cvode_local()) { printf("\tlocal atol=%g\n",cvode.atol)
+          } else if (cvode_active()) { printf("\tglobal atol=%g\n",cvode.atol)
+          } else if (secondorder==2) { printf("\tCrank-Nicholson dt=%g\n",cvode.atol)
+          } else if (secondorder==0) { printf("\timplicit dt=%g\n",cvode.atol)
+          } else { printf("\tMethod unrecognized\n") }
+        return
+      }
+    if (numarg()==2) prc = $2 else prc=0
+    finitialize()
+    if (strcmp($s1,"global")==0) {
+        cvode_active(1)
+        cvode.condition_order(2)
+        if (prc) cvode.atol(prc)
+      } else if (strcmp($s1,"local")==0) {
+        cvode_local(1)
+        cvode.condition_order(2)
+        if (prc) cvode.atol(prc)
+      } else if (strcmp($s1,"implicit")==0) {
+        secondorder=0
+        cvode_active(1)
+        cvode_active(0)
+        if (prc) dt=prc
+      } else if (strcmp($s1,"CN")==0) {
+        secondorder=2
+        cvode_active(1) // this turns off local
+        cvode_active(0)
+        if (prc) dt=prc
+      } else {
+        printf("Integration method %s not recognized\n",$s1)
+      }
+  }
+
+//* Load local modifications to nrnoc.hoc and default.hoc
+//================================================================
+// INSERTED /usr/site/nrniv/simctrl/hoc/local.hoc
+//  $Header: /usr/site/nrniv/simctrl/hoc/RCS/local.hoc,v 1.15 2003/02/13 15:32:06 billl Exp $
+//
+//  This file contains local modifications to nrnoc.hoc and default.hoc
+//
+//  Users should not edit nrnoc.hoc or default.hoc.  Any local 
+//  changes to these files should be made in this file.
+
+// ------------------------------------------------------------
+//* MODIFICATIONS TO NRNOC.HOC
+// The procedures declared here will overwrite any duplicate
+// procedures in nrnoc.hoc.
+// ------------------------------------------------------------
+
+//*MODIFICATIONS TO DEFAULT.HOC
+//
+// Vars added here may not be handled properly within nrnoc.hoc
+//------------------------------------------------------------
+
+//** String defaults
+
+//** Simulation defaults
+
+long_dt     = .001      // msec 
+
+objref sfunc,tmpfile
+sfunc = hoc_sf_   // needed to use is_name()
+tmpfile = new File()  // check for existence before opening a user's local.hoc file
+
+proc write_comment () {
+    tmpfile.aopen("index")
+    tmpfile.printf("%s\n",$s1)
+    tmpfile.close()  
+  }
+
+func asin () { return atan($1/sqrt(1-$1*$1)) }
+func acos () { return atan(sqrt(1-$1*$1)/$1) }
+
+objref mt[2]
+mt = new MechanismType(0)
+proc uninsert_all () { local ii
+    forall for ii=0,mt.count()-1 {
+        mt.select(ii)
+        mt.selected(temp_string_)
+        if (strcmp(temp_string_,"morphology")==0) continue
+        if (strcmp(temp_string_,"capacitance")==0) continue
+        if (strcmp(temp_string_,"extracellular")==0) continue
+        if (sfunc.substr(temp_string_,"_ion")!=-1) continue
+        mt.remove()
+        // print ii,temp_string_
+      }
+  }
+
+condor_run = 0  // define for compatability
+// END /usr/site/nrniv/simctrl/hoc/local.hoc
+//================================================================
+
+if (xwindows && graph_flag) { nrnmainmenu() } // pwman_place(50,50)
+
+print "Init complete.\n"
+// END /usr/site/nrniv/simctrl/hoc/nrnoc.hoc
+//================================================================
+
+//================================================================
+// INSERTED epi6r.hoc
+// $Id: epi6r.hoc,v 1.10 2005/04/12 12:57:41 billl Exp $
+//hoc file for L5 network
+//reads network conns from files
+
+// load_file("epi6r.hoc")
+// load_file("stdrun.hoc")
+
+//nrnmainmenu()
+//nrncontrolmenu()
+
+seed=3491
+vseed(seed)
+Seed_random(seed,0)
+
+celsius = 37
+dt = 0.1
+secondorder = 2
+tstop = 500
+runStopAt = tstop
+steps_per_ms = 10
+global_ra = 200
+v_init = -60
+
+objectvar g[20]			// max 20 graphs
+ngraph = 0
+
+proc addgraph() { local ii	// define subroutine to add a new graph
+  				// addgraph("variable", minvalue, maxvalue)
+  	ngraph = ngraph+1
+  	ii = ngraph-1
+  	g[ii] = new Graph()
+  	g[ii].size(0,tstop,$2,$3)
+  	g[ii].xaxis()
+  	g[ii].yaxis()
+  	g[ii].addvar($s1,1,0)
+  	g[ii].save_name("graphList[0].")
+  	graphList[0].append(g[ii])
+  }
+
+fpnum = 100
+tpnum = 300
+b5num = 100
+
+small = 1
+erest = -60
+irest = -60
+gadjust3 = 1
+
+printf("making fat pyramids...")
+//================================================================
+// INSERTED geom.pyr.p.small
+// $Id: geom.pyr.p.small,v 1.1 2005/04/12 03:46:09 billl Exp $
+
+begintemplate Pyramidal
+public soma, dend, pre, ampa, gabaa, gabab, nmda
+
+/*
+Reduced layer 5 pyramidal cell geometry, j4.cab.
+Paul Bush 1991
+*/
+
+create soma, dend[8]
+objectvar pre, ampa[3], gabaa[3], gabab[3], nmda[3]
+
+proc init() {
+  
+  	soma connect dend[0](0), 1
+          dend[0] connect dend[1](0), 1
+          dend[0] connect dend[2](0), 1
+          dend[2] connect dend[3](0), 1
+          dend[3] connect dend[4](0), 1
+          soma connect dend[5](0), 0
+          dend[5] connect dend[6](0), 1
+          dend[5] connect dend[7](0), 1
+  
+          soma.L = 13
+          dend[0].L = 60
+          dend[1].L = 150
+          dend[2].L = 400
+          dend[3].L = 400
+          dend[4].L = 250
+          dend[5].L = 50
+          dend[6].L = 150
+          dend[7].L = 150
+  
+  	soma.diam = 18.95
+          dend[0].diam = 6
+          dend[1].diam = 3
+          dend[2].diam = 4.4
+          dend[3].diam = 2.9
+          dend[4].diam = 2
+          dend[5].diam = 4
+          dend[6].diam = 5
+          dend[7].diam = 5
+  
+  	forall { nseg=1 cm = 1.56 Ra=200 }
+  
+          soma pre = new PRESYN(0.5,$1)
+  
+          soma gabaa[0] = new GABAa(0.5,$1,$2)
+          dend[0] gabaa[1] = new GABAa(0.5,$1,$2)
+          dend[5] gabaa[2] = new GABAa(0.5,$1,$2)
+  
+          dend[1] ampa[0] = new AMPA(0.5,$1,$2)
+          dend[6] ampa[1] = new AMPA(0.5,$1,$2)
+          dend[7] ampa[2] = new AMPA(0.5,$1,$2)
+  
+          dend[1] nmda[0] = new NMDA(0.5,$1,$2)
+          dend[6] nmda[1] = new NMDA(0.5,$1,$2)
+          dend[7] nmda[2] = new NMDA(0.5,$1,$2)
+  
+          dend[1] gabab[0] = new GABAb(0.5,$1)
+          dend[6] gabab[1] = new GABAb(0.5,$1)
+          dend[7] gabab[2] = new GABAb(0.5,$1)
+  }
+
+endtemplate Pyramidal
+// END geom.pyr.p.small
+//================================================================
+gadjust = 0.4
+sadjust = 2
+
+objectvar fp[fpnum]
+for i = 0, fpnum-1 { fp[i] = new Pyramidal(i,30) }
+
+CHAINLEN_GABAb = 5
+for i = 0, fpnum-1 {
+    for j = 0,2 {
+        fp[i].gabab[j].init_arrays(1) 
+      }
+  }
+
+Thresh_GABAb = -60
+
+printf("making thin pyramids...")
+//================================================================
+// INSERTED geom.pyr2.p.small
+
+begintemplate Pyramidal2
+public soma, dend, pre, ampa, gabaa, gabab, nmda
+
+/*
+Reduced layer 2 pyramidal cell geometry, j8.cab.
+Paul Bush 1991
+*/
+
+create soma, dend[8]
+objectvar pre, ampa[3], gabaa[3], gabab[3], nmda[3]
+
+proc init() {
+  
+  	soma connect dend[0](0), 1
+          dend[0] connect dend[1](0), 1
+          dend[0] connect dend[2](0), 1
+          dend[2] connect dend[3](0), 1
+          soma connect dend[4](0), 0
+          dend[4] connect dend[5](0), 1
+          dend[4] connect dend[6](0), 1
+  
+          soma.L = 13
+          dend[0].L = 35
+          dend[1].L = 200
+          dend[2].L = 180
+          dend[3].L = 140
+          dend[4].L = 50
+          dend[5].L = 150
+          dend[6].L = 150
+  
+  	soma.diam = 15.6
+          dend[0].diam = 2.5
+          dend[1].diam = 2.3
+          dend[2].diam = 2.4
+          dend[3].diam = 2
+          dend[4].diam = 2.5
+          dend[5].diam = 1.6
+          dend[6].diam = 1.6
+  
+  	forall { nseg=1 cm = 2.065 Ra=200 }
+  
+  	soma pre = new PRESYN(0.5,$1)
+  
+          soma gabaa[0] = new GABAa(0.5,$1,$2)
+          dend[0] gabaa[1] = new GABAa(0.5,$1,$2)
+          dend[4] gabaa[2] = new GABAa(0.5,$1,$2)
+  
+          dend[1] ampa[0] = new AMPA(0.5,$1,$2)
+          dend[5] ampa[1] = new AMPA(0.5,$1,$2)
+          dend[6] ampa[2] = new AMPA(0.5,$1,$2)
+  
+          dend[1] nmda[0] = new NMDA(0.5,$1,$2)
+          dend[5] nmda[1] = new NMDA(0.5,$1,$2)
+          dend[6] nmda[2] = new NMDA(0.5,$1,$2)
+  
+          dend[1] gabab[0] = new GABAb(0.5,$1)
+          dend[5] gabab[1] = new GABAb(0.5,$1)
+          dend[6] gabab[2] = new GABAb(0.5,$1)
+  }
+
+endtemplate Pyramidal2
+// END geom.pyr2.p.small
+//================================================================
+gadjust2 = 0.45
+
+objectvar tp[tpnum]
+for i = 0, tpnum-1 { tp[i] = new Pyramidal2(i,30) }
+
+for i = 0, tpnum-1 {
+    for j = 0,2 {
+        tp[i].gabab[j].init_arrays(1) 
+      }
+  }
+
+printf("making basket cells...")
+//================================================================
+// INSERTED geom.bas.a.p
+
+begintemplate Basket
+public soma, dend, ampa, pre, gabaa
+
+/*
+Basket cell approximation (4.92) from G1.34 of V1 project
+Paul Bush 1992
+*/
+
+create soma, dend[6]
+
+objectvar ampa[5], pre, gabaa[3]
+
+proc init() {
+  
+          soma connect dend[0](0), 1
+          dend[0] connect dend[1](0), 1
+          dend[0] connect dend[2](0), 1
+          soma connect dend[3](0), 0
+          dend[3] connect dend[4](0), 1
+          dend[3] connect dend[5](0), 1
+  
+          soma.L = 15
+          dend[0].L = 50
+          dend[1].L = 150
+          dend[2].L = 150
+          dend[3].L = 50
+          dend[4].L = 150
+          dend[5].L = 150
+  
+          soma.diam = 15
+          dend[0].diam = 2.5
+          dend[1].diam = 1.6
+          dend[2].diam = 1.6
+          dend[3].diam = 2.5
+          dend[4].diam = 1.6
+          dend[5].diam = 1.6
+  
+  	forall { nseg=1 cm = 2.2125 Ra=200 }
+  
+          soma pre = new PRESYN(0.5,$1)
+  
+          soma gabaa[0] = new GABAa(0.5,$1,$2)
+          dend[0] gabaa[1] = new GABAa(0.5,$1,$2)
+          dend[3] gabaa[2] = new GABAa(0.5,$1,$2)
+  
+          soma ampa[0] = new AMPA(0.5,$1,$2)
+          dend[1] ampa[1] = new AMPA(0.5,$1,$2)
+          dend[2] ampa[2] = new AMPA(0.5,$1,$2)
+          dend[4] ampa[3] = new AMPA(0.5,$1,$2)
+          dend[5] ampa[4] = new AMPA(0.5,$1,$2)
+  }
+
+endtemplate Basket
+// END geom.bas.a.p
+//================================================================
+objectvar bas5[b5num]
+for i = 0, b5num-1 { bas5[i] = new Basket(i,30) }
+
+access fp[0].soma
+
+for ii=0,fpnum-1 { fp[ii].pre.num=ii }
+for ii=0,tpnum-1 { tp[ii].pre.num=ii+fpnum }
+for ii=0,b5num-1 { bas5[ii].pre.num=ii+fpnum+tpnum }
+
+double deg[fpnum+tpnum+b5num]
+objectvar spikes
+spikes = new File()
+objectvar orient
+orient = new File()
+objectvar gpop, gtstpop
+
+proc init() {
+    spikes.wopen("data.temp")
+    finitialize(v_init)
+    fcurrent()
+  }
+
+func precall() {
+	spikes.printf(" %g %g",$1,t)
+	return 1
+}
+
+proc spg () {
+    spikes.close()
+    gpop.size(0,tstop,0,fpnum+tpnum+b5num)
+    gpop.erase_all()
+    if (numarg()==1) spikes.ropen($s1) else spikes.ropen("data.temp")
+    while(!spikes.eof) {
+        i = spikes.scanvar()
+        t = spikes.scanvar()
+        gpop.mark(t,i,1,2)
+    //gpop.mark(t,i,"O",3) [default, suns etc]
+      }
+  }  
+
+proc or() {
+    orient.wopen("or.temp")
+    spikes.ropen("data.temp") 
+    for x = 0, (fpnum-1+tpnum+b5num) { deg[x] = 0 }
+    while(!spikes.eof) {
+        i = spikes.scanvar()
+        t = spikes.scanvar()
+        deg[i] = deg[i]+1
+      }
+    for x = 0, (fpnum-1+tpnum+b5num) {
+        orient.printf("%g %g\n",x,deg[x])
+      }
+    orient.close()
+  }
+
+printf("adding conductances...")
+
+for i = 0, fpnum-1 { fp[i].soma { insert fastpas g_fastpas = 0.000142*gadjust e_fastpas = erest+1 } }
+for i = 0, fpnum-1 { fp[i].soma { insert na gmax_na=0.04*sadjust insert kdr gmax_kdr=0.03*sadjust mbaserate_kdr=0.05 }}
+for i = 0, fpnum-1 { fp[i].dend[2] { insert nap gmax_nap = 0.015 insert kdrp gmax_kdrp = 0.03}}
+for i = 0, fpnum-1 {
+    for j = 0, 7 { fp[i].dend[j] { insert fastpas g_fastpas = 0.000142*gadjust e_fastpas = erest+1 }}}
+
+for i = 0, tpnum-1 { tp[i].soma { insert fastpas g_fastpas = 0.0001475*gadjust2 e_fastpas = erest-1 } }
+for i = 0, tpnum-1 { tp[i].soma { insert na gmax_na=0.03 insert kdr gmax_kdr=0.02 mbaserate_kdr=0.015 insert cah gmax_cah = 0.001 insert cadecay insert kca gmax_kca = 0.001}}
+for i = 0, tpnum-1 {
+    for j = 0, 6 { tp[i].dend[j] { insert fastpas g_fastpas = 0.0001475*gadjust2 e_fastpas = erest }}}
+
+for i = 0, b5num-1 { bas5[i].soma { insert fastpas g_fastpas = 0.0001475*gadjust3 e_fastpas = irest-1 } }
+for i = 0, b5num-1 { bas5[i].soma { insert na gmax_na=0.08 insert kdr gmax_kdr=0.09}}
+for i = 84, b5num-1 { bas5[i].soma { insert cah gmax_cah = 0.0005 insert cadecay taucaremov_cadecay = 100 insert kca gmax_kca = 0.0025}}
+for i = 0, b5num-1 {
+    for j = 0, 5 { bas5[i].dend[j] { insert fastpas g_fastpas = 0.0001475*gadjust3 e_fastpas = irest }}}
+
+printf("adding extrinsic inputs")
+
+bgrate = 0
+onrate = 0.1*0.5
+ontime = 50
+offtime = 55
+fpamp = 0.008
+tpamp = 0.004
+b5amp = 0.0015
+b5ampb = 0.001
+
+objectvar fpsyn[3][fpnum]
+objectvar fpgen[3][fpnum]
+
+for i = 0, fpnum-1 {
+    fp[i].dend[1] fpsyn[0][i] = new holt_alphasyn(0.5)
+    fp[i].dend[6] fpsyn[1][i] = new holt_alphasyn(0.5)
+    fp[i].dend[7] fpsyn[2][i] = new holt_alphasyn(0.5)
+    fp[i].dend[1] fpgen[0][i] = new fpoisson_generator(0.5)
+    fp[i].dend[6] fpgen[1][i] = new fpoisson_generator(0.5)
+    fp[i].dend[7] fpgen[2][i] = new fpoisson_generator(0.5)
+  }
+
+for i = 0, fpnum-1 {
+    for j = 0, 2 {
+        fpsyn[j][i].set_tau(1)
+        fpgen[j][i].mean_rate = onrate
+        fpgen[j][i].bg_rate = bgrate
+        val = Normal_random(fpamp,fpamp/2)
+        if (val < 0) { val=0 }
+        fpgen[j][i].magnitude = val
+        fpgen[j][i].on = ontime
+        fpgen[j][i].off = offtime
+        setpointer fpgen[j][i].out_stim, fpsyn[j][i].stim
+      }
+  }
+
+objectvar tpsyn[3][tpnum]
+objectvar tpgen[3][tpnum]
+
+for i = 0, tpnum-1 {
+  tp[i].dend[1] tpsyn[0][i] = new holt_alphasyn(0.5)
+  tp[i].dend[5] tpsyn[1][i] = new holt_alphasyn(0.5)
+  tp[i].dend[6] tpsyn[2][i] = new holt_alphasyn(0.5)
+  tp[i].dend[1] tpgen[0][i] = new fpoisson_generator(0.5)
+  tp[i].dend[5] tpgen[1][i] = new fpoisson_generator(0.5)
+  tp[i].dend[6] tpgen[2][i] = new fpoisson_generator(0.5)
+  }
+
+for i = 0, tpnum-1 {
+    for j = 0, 2 {
+    tpsyn[j][i].set_tau(1)
+    tpgen[j][i].mean_rate = onrate
+    tpgen[j][i].bg_rate = bgrate
+    val = Normal_random(tpamp,tpamp/2)
+    if (val < 0) { val=0 }
+    tpgen[j][i].magnitude = val
+    tpgen[j][i].on = ontime
+    tpgen[j][i].off = offtime
+    setpointer tpgen[j][i].out_stim, tpsyn[j][i].stim
+      }
+  }
+
+objectvar b5syn[3][b5num]
+objectvar b5gen[3][b5num]
+
+for i = 0, b5num-1 {
+  bas5[i].soma b5syn[0][i] = new holt_alphasyn(0.5)
+  bas5[i].dend[1] b5syn[1][i] = new holt_alphasyn(0.5)
+  bas5[i].dend[4] b5syn[2][i] = new holt_alphasyn(0.5)
+  bas5[i].soma b5gen[0][i] = new fpoisson_generator(0.5)
+  bas5[i].dend[1] b5gen[1][i] = new fpoisson_generator(0.5)
+  bas5[i].dend[4] b5gen[2][i] = new fpoisson_generator(0.5)
+  }
+
+for i = 0, b5num-1 {
+    for j = 0, 2 {
+    b5syn[j][i].set_tau(1)
+    b5gen[j][i].mean_rate = onrate
+    b5gen[j][i].bg_rate = bgrate
+    val = Normal_random(b5amp,b5amp/2)
+    if (i>83) { val = Normal_random(b5ampb,b5ampb/2) }
+    if (val < 0) { val=0 }
+    b5gen[j][i].magnitude = val
+    b5gen[j][i].on = ontime
+    b5gen[j][i].off = offtime
+    setpointer b5gen[j][i].out_stim, b5syn[j][i].stim
+      }
+  }
+
+//L5 conn
+
+gffa = 0.002*1
+gffn = 0.001*1
+gtta = 0.001*1
+gttn = 0.0005*1
+gfta = gtta
+gftn = gttn
+gtfa = gffa
+gtfn = gffn
+gtia = 0.001
+gfia = 0.001
+gifa = 0.002*2
+gita = 0.01*2
+gibfa = 0.0002
+gibta = 0.0005
+
+printf("doing f-f")
+objectvar ff
+ff = new File()
+ff.ropen("Aff")
+
+for i = 0, fpnum-1 {
+    for j = 0,9 {
+        i = ff.scanvar()
+        y = ff.scanvar()
+        pr = ff.scanvar()
+        tg = ff.scanvar()
+        td = ff.scanvar()
+        ntg = ff.scanvar()
+        fp[pr].ampa[y].setlink(fp[i].pre.link)
+        fp[pr].ampa[y].gmax(-1,tg)
+        fp[pr].ampa[y].delay(-1,td)
+        fp[pr].nmda[y].setlink(fp[i].pre.link)
+        fp[pr].nmda[y].gmax(-1,ntg)
+        fp[pr].nmda[y].delay(-1,td)
+      }
+  }
+ff.close()
+
+printf("doing t-t")
+objectvar tt
+tt = new File()
+tt.ropen("Att")
+
+for i = 0, tpnum-1 {
+    for j = 0,29 {
+        i = tt.scanvar()
+        y = tt.scanvar()
+        pr = tt.scanvar()
+        tg = tt.scanvar()
+        td = tt.scanvar()
+        ntg = tt.scanvar()
+        tp[pr].ampa[y].setlink(tp[i].pre.link)
+        tp[pr].ampa[y].gmax(-1,tg)
+        tp[pr].ampa[y].delay(-1,td)
+        tp[pr].nmda[y].setlink(tp[i].pre.link)
+        tp[pr].nmda[y].gmax(-1,ntg)
+        tp[pr].nmda[y].delay(-1,td)
+      }
+  }
+tt.close()
+
+printf("doing f-t")
+objectvar ft
+ft = new File()
+ft.ropen("Aft")
+
+for i = 0, fpnum-1 {
+    for j = 0,29 {
+        i = ft.scanvar()
+        y = ft.scanvar()
+        pr = ft.scanvar()
+        tg = ft.scanvar()
+        td = ft.scanvar()
+        ntg = ft.scanvar()
+        tp[pr].ampa[y].setlink(fp[i].pre.link)
+        tp[pr].ampa[y].gmax(-1,tg)
+        tp[pr].ampa[y].delay(-1,td)
+        tp[pr].nmda[y].setlink(fp[i].pre.link)
+        tp[pr].nmda[y].gmax(-1,ntg)
+        tp[pr].nmda[y].delay(-1,td)
+      }
+  }
+ft.close()
+
+printf("doing t-f")
+objectvar tf
+tf = new File()
+tf.ropen("Atf")
+
+for i = 0, tpnum-1 {
+    for j = 0,9 {
+        i = tf.scanvar()
+        y = tf.scanvar()
+        pr = tf.scanvar()
+        tg = tf.scanvar()
+        td = tf.scanvar()
+        ntg = tf.scanvar()
+        fp[pr].ampa[y].setlink(tp[i].pre.link)
+        fp[pr].ampa[y].gmax(-1,tg)
+        fp[pr].ampa[y].delay(-1,td)
+        fp[pr].nmda[y].setlink(tp[i].pre.link)
+        fp[pr].nmda[y].gmax(-1,ntg)
+        fp[pr].nmda[y].delay(-1,td)
+      }
+  }
+tf.close()
+
+printf("doing t-i")
+objectvar ti
+ti = new File()
+ti.ropen("Ati")
+
+for i = 0, tpnum-1 {
+    for j = 0,9 {
+        i = ti.scanvar()
+        y = ti.scanvar()
+        pr = ti.scanvar()
+        tg = ti.scanvar()
+        td = ti.scanvar()
+        bas5[pr].ampa[y].setlink(tp[i].pre.link)
+        bas5[pr].ampa[y].gmax(-1,tg)
+        bas5[pr].ampa[y].delay(-1,td)
+      }
+  }
+ti.close()
+
+printf("doing f-i")
+objectvar fi
+fi = new File()
+fi.ropen("Afi")
+
+for i = 0, fpnum-1 {
+    for j = 0,9 {
+        i = fi.scanvar()
+        y = fi.scanvar()
+        pr = fi.scanvar()
+        tg = fi.scanvar()
+        td = fi.scanvar()
+        bas5[pr].ampa[y].setlink(fp[i].pre.link)
+        bas5[pr].ampa[y].gmax(-1,tg)
+        bas5[pr].ampa[y].delay(-1,td)
+      }
+  }
+fi.close()
+
+Erev_GABAa = -70
+
+printf("doing ia-f")
+objectvar iaf
+iaf = new File()
+iaf.ropen("Aiaf")
+
+for i = 0, 83 {
+    for j = 0,9 {
+        i = iaf.scanvar()
+        y = iaf.scanvar()
+        pr = iaf.scanvar()
+        tg = iaf.scanvar()
+        td = iaf.scanvar()
+        fp[pr].gabaa[y].setlink(bas5[i].pre.link)
+        fp[pr].gabaa[y].gmax(-1,tg)
+        fp[pr].gabaa[y].delay(-1,td)
+      }
+  }
+iaf.close()
+
+printf("doing ia-t")
+objectvar iat
+iat = new File()
+iat.ropen("Aiat")
+
+for i = 0, b5num-1 {
+    for j = 0,29 {
+        i = iat.scanvar()
+        y = iat.scanvar()
+        pr = iat.scanvar()
+        tg = iat.scanvar()
+        td = iat.scanvar()
+        tp[pr].gabaa[y].setlink(bas5[i].pre.link)
+        tp[pr].gabaa[y].gmax(-1,tg)
+        tp[pr].gabaa[y].delay(-1,td)
+      }
+  }
+iat.close()
+
+printf("doing ib-f")
+objectvar ibf
+ibf = new File()
+ibf.ropen("Aibf")
+
+for i = 0, fpnum-1 {
+    for j = 0,2 {
+        i = ibf.scanvar()
+        pr = ibf.scanvar()
+        tg = ibf.scanvar()
+        td = ibf.scanvar()
+        fp[i].gabab[j].setlink(bas5[pr].pre.link)
+        fp[i].gabab[j].gmax(-1,tg/1.5)
+        fp[i].gabab[j].delay(-1,td)
+      }
+  }
+ibf.close()
+
+printf("doing ib-t")
+objectvar ibt
+ibt = new File()
+ibt.ropen("Aibt")
+
+for i = 0, tpnum-1 {
+    for j = 0,2 {
+        i = ibt.scanvar()
+        pr = ibt.scanvar()
+        tg = ibt.scanvar()
+        td = ibt.scanvar()
+        tp[i].gabab[j].setlink(bas5[pr].pre.link)
+        tp[i].gabab[j].gmax(-1,tg/1.2)
+        tp[i].gabab[j].delay(-1,td)
+      }
+  }
+ibt.close()
+
+/*
+addgraph("fp[0].soma.v(0.5)",-70,20)
+addgraph("fp[50].soma.v(0.5)",-70,20)
+addgraph("tp[0].soma.v(0.5)",-70,20)
+addgraph("tp[150].soma.v(0.5)",-70,20)
+addgraph("bas5[0].soma.v(0.5)",-70,20)
+addgraph("bas5[90].soma.v(0.5)",-70,20)
+//addgraph("sp[0].gabab[3].activity",0,1)
+//addgraph("sp[0].gabab[3].g",0,1)
+*/
+objref box
+box=new VBox()
+box.intercept(1)
+xpanel("choices to run")
+	xlabel("Press the below to run a 5 minute or so simulation that")
+	xlabel("creates Fig 6C of Bush, Prince, and Miller (1999)")
+	xbutton("run fig 6C simulation","run_fig6()")
+	xlabel(" ")
+	xlabel("Press the below to test runability that takes less")
+	xlabel("than 10 seconds on a 1GhZ linux pc")
+	xbutton("Verify runability","run_short()")
+xpanel()
+box.intercept(0)
+box.map()
+
+// run()
+proc run_fig6() {
+	tstop=500
+	print "Note: network simulation has begun."
+	print "If you wish to monitor the simulations elapsed time"
+	print "click on the NEURON Main Menu's Tools and then"
+	print "RunControl (displays the elapsed time)"
+	run()
+	make_graph()
+}
+proc run_short() {
+	tstop=3	//	set tstop=55 to see first spike
+	load_file("gtstpop.ses")
+	run()
+	gtstpop.label(.2,.5,"Runability verified")
+	gtstpop.exec_menu("View = plot")
+	print " "
+	print "Runability verified"
+}
+proc make_graph() {
+	gpop = new Graph()
+	spg()
+}
+
+// prepare for possible modelview use by accessing a section
+access Pyramidal[0].soma
+
+// END epi6r.hoc
+//================================================================
+// END batch.hoc
+//================================================================

@@ -1,0 +1,31 @@
+Simulation based on Fig. 6C of
+
+Bush, PC and Prince, DA and Miller, KD (1999) Increased pyramidal excitability and 
+nmda conductance can explain posttraumatic epileptogenesis without disinhibition: 
+a model. Journal of Neurophysiology 82:1748-1758
+
+After unzipping the archive and cd'ing to the directory:
+
+To run under unix:  
+        nrnivmodl; nrngui init.hoc
+On the PC:
+	While running mknrndll, cd to ctxnet and select make nrnmech.dll to compile
+	the mod files in the ctxnet directory.
+	Double click on mosinit.hoc in the ctxnet directory in window explorer
+	
+On the OS X mac:
+	Drag the ctxnet folder to the mknrndll icon under the Neuron 5.7 application.
+	When the above is complete drag the ctxnet folder to the nrngui icon.
+	
+Simulation shows epileptiform response to brief single stimulation in a 500 cell
+network of multicompartment models, some of which have active dendrites.
+
+The simulation depends on random number generation so will likely run differently
+under different operating systems.  The results which I obtained under Redhat
+Linux is shown in result.gif.  The current version can have a couple of lines 
+uncommented in holt_random.mod (see comments) to have the seed change each 
+time the simulation is run.
+
+Original 1997 code from Paul Bush modified slightly by Bill Lytton to make it work with
+current version of NEURON (5.7.139).  Thanks to Paul Bush and Ken Miller for
+making the code available.
