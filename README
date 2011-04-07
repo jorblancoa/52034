@@ -29,3 +29,4 @@ time the simulation is run.
 Original 1997 code from Paul Bush modified slightly by Bill Lytton to make it work with
 current version of NEURON (5.7.139).  Thanks to Paul Bush and Ken Miller for
 making the code available.
+20110407 updated solve methods to cnexp, derivimplicit from euler

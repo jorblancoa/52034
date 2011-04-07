@@ -72,7 +72,7 @@ ASSIGNED { i (nA)  g (umho)}
 
 BREAKPOINT {			:everything in BREAKPOINT called twice except SOLVE
 
-  SOLVE dstates METHOD euler
+  SOLVE dstates METHOD cnexp
 
   g = gmax * Y / (tau * 0.36787944)   : tau * exp(-1)
   i = g*(v - erev)
