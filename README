@@ -30,3 +30,5 @@ Original 1997 code from Paul Bush modified slightly by Bill Lytton to make it wo
 current version of NEURON (5.7.139).  Thanks to Paul Bush and Ken Miller for
 making the code available.
 20110407 updated solve methods to cnexp, derivimplicit from euler
+20150219 implements Michael Hine's suggestion to update the DERIVATIVE
+block in kca.mod to a form compatible with cnexp
