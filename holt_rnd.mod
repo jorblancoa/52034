@@ -20,10 +20,10 @@ INDEPENDENT {t FROM 0 TO 1 WITH 1 (ms)}
 
 VERBATIM
 double holt_random();
-void holt_seed();
-double holt_normrand();
+void holt_seed(int, int);
+double holt_normrand(double, double);
 double holt_exprand();
-int holt_poisrand();
+int holt_poisrand(double);
 ENDVERBATIM
 
 :
@@ -108,8 +108,7 @@ extern double drand48();
  *    1 = random()
  */
 void
-holt_seed(seedval, gen_code)
-int seedval, gen_code;
+holt_seed(int seedval, int gen_code)
 {
   if (seedval == 0)		/* No seed explicitly given? */
 	seedval=3491;
@@ -146,6 +145,7 @@ holt_random()
 // #ifndef hpux
 //  case RANDOM:    return (double)random() / (double)0x7fffffff;
 // #endif
+  default: abort();
   }
 }
 
@@ -172,13 +172,10 @@ holt_random()
 /*								*/
 /*--------------------------------------------------------------*/
 
-double 
-holt_normrand(mean, std_dev)
-double mean, std_dev;
+double
+holt_normrand(double mean, double std_dev)
 {
     double s, v1, v2;
-    extern double sqrt(), log();
-
     s = 1.0;
     while (s >= 1.0)
     {
@@ -198,14 +195,11 @@ double mean, std_dev;
 #define PI 3.141592654
 
 int
-holt_poisrand(xm)
-double xm;
+holt_poisrand(double xm)
 {
-  float gammln();
-  double drand48();
+  float gammln(float);
   static float sq,alxm,g,oldm=(-1.0);
   double em,tt,y;
-  double exp();
 
   if (xm < 12.0) {
     if (xm != oldm) {
@@ -242,8 +236,7 @@ double xm;
 /* (C) Copr. 1986-92 Numerical Recipes Software #.3. */
 
 float
-gammln(xx)
-float xx;
+gammln(float xx)
 {
         double x,tmp,ser;
         static double cof[6]={76.18009173,-86.50532033,24.01409822,
@@ -286,8 +279,6 @@ float xx;
 double 
 holt_exprand()
 {
-    extern double log();
-
     return (-log(holt_random()));
 }
 ENDVERBATIM

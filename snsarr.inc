@@ -114,13 +114,13 @@ PROCEDURE init_arrays(num) {
 }
 
 VERBATIM
-static void hshake();
+static void hshake(SynS*, PreL*, int);
 ENDVERBATIM
 
 : 2 arguments - index, presyn link
 PROCEDURE setlink() {
 VERBATIM { 
-  int ii, x, new;
+  int ii, x, new_v;
   SynS *sns;
   double ptemp;
   PreL *ppsyn;
@@ -148,16 +148,16 @@ VERBATIM {
 
   if (x == nsyn) {
     nsyn++;		/* a new entry */
-    new = 1;
+    new_v = 1;
   } else { 
     /* should generate error if try to change something in middle of chain */
     if (sns->chainlen == -2) {
       hoc_execerror("Internal error: Index used must be multiple of CHAINLEN.", 0);
     }
-    new = 0; 
+    new_v = 0;
   }
 
-  hshake(sns,ppsyn,new);
+  hshake(sns,ppsyn,new_v);
 
   x *= (int)CHAINLEN;
   for (ii=x;ii < x + CHAINLEN;ii++) {
@@ -180,12 +180,9 @@ ENDVERBATIM
 
 : manipulate the presynaptic list remotely
 VERBATIM
-static void hshake(ss,pl,flag) 
 /* ls will be a pointer to presyn cell's array of pointers */
-SynS *ss;
-PreL *pl;
-int flag; /* flag == 1 if this is a brand new entry */
-{
+/* flag == 1 if this is a brand new entry */
+static void hshake(SynS *ss, PreL *pl, int flag) {
   int ii;
   double *nn;
   double *mx;
