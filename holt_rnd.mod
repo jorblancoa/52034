@@ -194,10 +194,9 @@ holt_normrand(double mean, double std_dev)
  */
 #define PI 3.141592654
 
-int
-holt_poisrand(double xm)
-{
-  float gammln(float);
+float gammln(float);
+
+int holt_poisrand(double xm) {
   static float sq,alxm,g,oldm=(-1.0);
   double em,tt,y;
 
@@ -235,9 +234,7 @@ holt_poisrand(double xm)
 #undef PI
 /* (C) Copr. 1986-92 Numerical Recipes Software #.3. */
 
-float
-gammln(float xx)
-{
+float gammln(float xx) {
         double x,tmp,ser;
         static double cof[6]={76.18009173,-86.50532033,24.01409822,
                 -1.231739516,0.120858003e-2,-0.536382e-5};
